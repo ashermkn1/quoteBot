@@ -55,7 +55,7 @@ async def remove_quote(ctx: commands.Context, message_id: int=None):
       await ctx.send('Please provide the id of a message you want to remove')
       return
     quote = await ctx.channel.fetch_message(message_id)
-    db.execute('DELETE * FROM quotes WHERE quote=?', (quote.content,))
+    db.execute('DELETE FROM quotes WHERE quote=?', (quote.content,))
     conn.commit()
     await ctx.send('Done!')
      
