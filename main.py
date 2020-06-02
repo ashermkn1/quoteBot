@@ -26,7 +26,8 @@ async def add_quote(ctx: commands.Context, message_id: int=None):
       return
     quote = await ctx.channel.fetch_message(message_id)
     time = quote.created_at.replace(tzinfo=timezone(-timedelta(hours=4)))
-    db.execute('INSERT into quotes (user_id, quote, time) VALUES (?, ?, ?)', (quote.author.id, quote.content.strip('```'), time))))
+    db.execute('INSERT into quotes (user_id, quote, time) VALUES (?, ?, ?)', 
+      (quote.author.id, quote.content.strip('```'), time))
     conn.commit()
     await ctx.send("Done!")
 
