@@ -13,16 +13,16 @@ print(TOKEN)
 conn = sqlite3.connect('quotes.db', detect_types=sqlite3.PARSE_DECLTYPES |
                                            sqlite3.PARSE_COLNAMES)
 db = conn.cursor()
-
+asher = 269227960156946454
 aliases = {
-  'robotgirl2k4' : "fucking idiot",
+  'robotgirl2k4' : "sadist",
   'Sandy' : "Sandy",
   'MagicMosasaur' : "Charlie",
   "JuliaTheSciNerd" : "Julia",
   "Nicole" : "Nicole",
   "avm" : "AlexaV",
   "Mathtician" : "Aresh",
-  "GhostDragon" : "fucking idiot #2"
+  "GhostDragon" : "bottom"
   }
   
 @bot.command(name='changealias', help='change your alias to a specified nickname')
@@ -96,7 +96,7 @@ async def get_quote(ctx: commands.Context, person: User=None, keyword: str=None,
     datetime = randQuote[1]
     time = datetime.time()
     date = datetime.date()
-    await ctx.send(f'''At {time.isoformat(timespec='minutes')} on {date.isoformat()}, {person.mention} said "{randQuote[0]}"''')
+    await ctx.send(f'At {time.isoformat(timespec="minutes")} on {date.isoformat()}, {person.mention} said "{randQuote[0]}"')
 
 @bot.command(name='qremove', help="removes a given message_id from the database")
 async def remove_quote(ctx: commands.Context, message_id: int=None):
@@ -116,8 +116,31 @@ async def help(ctx: commands.Context):
     '!changealias [alias] to change your alias to the one provided\n' +
     '!qadd [message_id] [mention (optional)] to add that message as a quote, use mention to override the author to the user mentioned\n' +
     '!qget [user_mention] [keyword] [list] to get a random quote from the specified user matching keyword if provided. providing "list" will print out all of the matching quotes\n' +
+    '!qgetall [user_mention] to get all the quotes from a user\n' + 
     '!qremove [message_id] to remove that message as a quote\n' +
     '!qhelp to show this message again'
     )
+    
+@bot.command(name='qgetall', help='get all quotes by a user')
+async def get_all(ctx: commands.Context, mention: User=None):
+    if not mention:
+      await ctx.send('Please mention a user to get a random quote from')
+      return
+      
+    db.execute("SELECT quote, time FROM quotes WHERE user_id=?", (mention.id,))
+    quotes = db.fetchall()
+    
+    if len(quotes) == 0:
+      await ctx.send('No quotes found for this user, add some with `!qadd [message_id]`')
+      return
+    
+    await ctx.send(f'Now listing all quotes for {mention.mention}\n')
+    for quote in quotes:
+      datetime = quote[1]
+      time = datetime.time()
+      date = datetime.date()
+      await ctx.send(f'At {time.isoformat(timespec="minutes")} on {date.strftime("%m/%d")}, {aliases[mention.name] if mention.name in aliases else mention.display_name} said "{quote[0]}"')
+      
+       
 bot.run(TOKEN)
 
