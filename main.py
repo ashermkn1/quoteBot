@@ -4,7 +4,7 @@ import sqlite3
 import random
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
-
+import pytz
 from discord.ext import commands
 load_dotenv('.env')
 bot = commands.Bot(command_prefix='!')
@@ -15,18 +15,29 @@ conn = sqlite3.connect('quotes.db', detect_types=sqlite3.PARSE_DECLTYPES |
 db = conn.cursor()
 asher = 269227960156946454
 aliases = {
-  'robotgirl2k4' : "sadist",
+  'robotgirl2k4' : "power top",
   'Sandy' : "Sandy",
   'MagicMosasaur' : "Charlie",
   "JuliaTheSciNerd" : "Julia",
   "Nicole" : "Nicole",
   "avm" : "AlexaV",
   "Mathtician" : "Aresh",
-  "GhostDragon" : "bottom"
+  "GhostDragon" : "bottom",
+  "Dracoslayer123" : "Andrew",
+  "Ana'el" : "Ana",
+  "lex" : "Valadez",
+  "shhh im a closet trans girl" : "cooper"
   }
   
 @bot.command(name='changealias', help='change your alias to a specified nickname')
-async def change_alias(ctx: commands.Context, nickname: str):
+async def change_alias(ctx: commands.Context, nickname: str, mention: User=None):
+  if mention:
+    if ctx.message.author.name != "GhostDragon":
+      return
+    old = aliases[mention.name]
+    aliases[mention.name] = nickname
+    await ctx.send(f'Changed {mention.name}\'s  alias from "{old}" to "{aliases[mention.name]}"')
+    return
   if not nickname:
     await ctx.send('Please provide a nickname you want')
     return
@@ -36,7 +47,10 @@ async def change_alias(ctx: commands.Context, nickname: str):
 
 
 @bot.command(name='getalias', help='get your current alias')
-async def get_alias(ctx: commands.Context):
+async def get_alias(ctx: commands.Context, mention: User=None):
+  if mention:
+    await ctx.send(f"{mention.name}'s current alias is \"{aliases[mention.name]}\"")
+    return
   await ctx.send(f'Your current alias is "{aliases[ctx.message.author.name]}"')
   
   
@@ -53,7 +67,7 @@ async def add_quote(ctx: commands.Context, message_id: int=None, mention: User=N
       await ctx.send('Please provide an id of the message you want to quote')
       return
     quote = await ctx.channel.fetch_message(message_id)
-    time = quote.created_at.replace(tzinfo=timezone(-timedelta(hours=4)))
+    time = quote.created_at
     if mention:
       db.execute('INSERT into quotes (user_id, quote, time) VALUES (?, ?, ?)', 
       (mention.id, quote.content.strip('```'), time))
@@ -86,7 +100,7 @@ async def get_quote(ctx: commands.Context, person: User=None, keyword: str=None,
       return
     if all == 'list':
       for quote in quotes:
-        datetime = quote[1]
+        datetime = quote[1].astimezone(pytz.timezone("US/Eastern"))
         time = datetime.time()
         date = datetime.date()
         await ctx.send(f'''At {time.isoformat(timespec='minutes')} on {date.isoformat()}, {person.mention} said "{quote[0]}"''')
@@ -104,7 +118,12 @@ async def remove_quote(ctx: commands.Context, message_id: int=None):
       await ctx.send('Please provide the id of a message you want to remove')
       return
     quote = await ctx.channel.fetch_message(message_id)
-    deleted = db.execute('DELETE FROM quotes WHERE quote=?', (quote.content,))
+    db.execute('SELECT * FROM quotes WHERE quote=?', (quote.content,))
+    deleted = list(db.fetchall())
+    if not deleted:
+      await ctx.send('No quote was found with that id')
+      return
+    db.execute('DELETE FROM quotes WHERE quote=?', (quote.content,))
     conn.commit()
     author = bot.get_user(deleted[0]['user_id'])
     await ctx.send(f'Removed "{quote.content}" from {aliases[quote.author.name] if quote.author.name in aliases else quote.author.display_name}\'s quotes')
