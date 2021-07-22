@@ -3,6 +3,7 @@ import random
 import shelve
 import sqlite3
 import sys
+import traceback
 
 import pytz
 from discord import *
@@ -74,11 +75,12 @@ async def on_disconnect():
 
 
 @bot.event
-async def on_error(event: str):
+async def on_error(event: str, *args, **kwargs):
     # send me dm with traceback
-    dm = await me.create_dm()
-    await dm.send(f'{event} has errored: here is the traceback you idiot')
-    await dm.send(sys.exc_info())
+    await me.send(f'{event} has errored: here is the traceback')
+    await me.send(traceback.format_exc())
+    ctx = args[0]
+    await ctx.send("An error has occurred, please hold")
 
 
 @bot.command(name='qadd',
@@ -213,7 +215,7 @@ async def help(ctx: commands.Context):
 @bot.command(name='qgetall', help='get all quotes by a user')
 async def get_all(ctx: commands.Context, mention: User = None):
 
-    author = mention or ctx.author
+    author = mention if mention else ctx.author
 
     db.execute("SELECT quote, time FROM quotes WHERE user_id=?", (author.id,))
     quotes = db.fetchall()
@@ -222,14 +224,14 @@ async def get_all(ctx: commands.Context, mention: User = None):
         await ctx.send('No quotes found for this user, add some with `!qadd [message_id]`')
         return
 
-    await ctx.send(f'Now listing all quotes for {mention.mention}\n')
+    await ctx.send(f'Now listing all quotes for {author.mention}\n')
     for quote in quotes:
         datetime = quote[1]
         time = datetime.time()
         date = datetime.date()
         await ctx.send(
             f'At {time.isoformat(timespec="minutes")} on {date.strftime("%m/%d")}, '
-            f'{aliases.get(mention.name, default=mention.display_name)} said "{quote[0]}" '
+            f'{aliases.get(author.name, default=author.display_name)} said "{quote[0]}" '
         )
 
 
