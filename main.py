@@ -1,7 +1,6 @@
 import os
 import random
 import shelve
-import sqlite3
 import sys
 import traceback
 
@@ -19,8 +18,7 @@ bot = commands.Bot(command_prefix='!')
 # set up sqlite3 connection
 conn = sqlite3.connect('quotes.db', detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 db = conn.cursor()
-# me!
-me: User = bot.get_user(269227960156946454)
+
 
 
 @bot.command(name='setalias',
@@ -66,6 +64,9 @@ async def on_ready():
     aliases = shelve.open('aliases')
     # set up status
     await bot.change_presence(status=Status.online, activity=Game(name='!qhelp'))
+    global me
+    # me!
+    me = await bot.fetch_user(269227960156946454)
 
 
 @bot.event
