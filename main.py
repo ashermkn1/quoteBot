@@ -77,12 +77,11 @@ async def on_disconnect():
 
 
 @bot.event
-async def on_error(event: str, *args, **kwargs):
+async def on_command_error(ctx, error):
     # send me dm with traceback
-    await me.send(f'{event} has errored: here is the traceback')
-    await me.send(traceback.format_exc())
-    ctx = args[0]
-    await ctx.send("An error has occurred, please hold")
+    await me.send('something has errored: here is the traceback')
+    await me.send("".join(traceback.format_exception(type(error), error, error.__traceback__)))
+    await ctx.send("An error has occurred, hopefully its not fatal")
 
 
 @bot.command(name='qadd',
