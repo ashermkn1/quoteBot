@@ -3,6 +3,7 @@ import random
 import shelve
 import sys
 import traceback
+import sqlite3
 
 import pytz
 from discord import *
@@ -33,14 +34,14 @@ async def set_alias(ctx: commands.Context, nickname: str, mention: User = None):
             await ctx.send("Permission denied. Get fucked")
             return
 
-        old = aliases[mention.name]
+        old = aliases.get(mention.name,default="None")
         aliases[mention.name] = nickname
         await ctx.send(
             f'Changed {mention.name}\'s  alias from "{old}" to "{aliases[mention.name]}"'
         )
         return
 
-    old = aliases[ctx.message.author.name]
+    old = aliases.get(ctx.message.author.name, default="None")
     aliases[ctx.message.author.name] = nickname
 
     await ctx.send(
