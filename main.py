@@ -15,7 +15,7 @@ load_dotenv('.env')
 TOKEN = os.getenv('DISCORD_TOKEN')
 # set up bot
 bot = commands.Bot(command_prefix='!')
-
+aliases = shelve.open('aliases')
 # set up sqlite3 connection
 conn = sqlite3.connect('quotes.db', detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 db = conn.cursor()
@@ -60,9 +60,6 @@ async def get_alias(ctx: commands.Context, mention: User = None):
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user.name}')
-    # load aliases from shelf
-    global aliases
-    aliases = shelve.open('aliases')
     # set up status
     await bot.change_presence(status=Status.online, activity=Game(name='!qhelp'))
     global me
