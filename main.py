@@ -52,9 +52,9 @@ async def set_alias(ctx: commands.Context, nickname: str, mention: User = None):
 @bot.command(name='getalias', help='get your current alias')
 async def get_alias(ctx: commands.Context, mention: User = None):
     if mention:
-        await ctx.send(f"{mention.name}'s current alias is \"{aliases[mention.name]}\"")
+        await ctx.send(f"{mention.name}'s current alias is \"{aliases.get(mention.name,default='None')}\"")
     else:
-        await ctx.send(f'Your current alias is "{aliases[ctx.message.author.name]}"')
+        await ctx.send(f'Your current alias is "{aliases.get(ctx.message.author.name,default="None")}"')
 
 
 @bot.event
