@@ -69,8 +69,9 @@ async def on_ready():
 
 @bot.event
 async def on_disconnect():
+    pass
     # sync shelf
-    aliases.close()
+   # aliases.close()
 
 
 @bot.event
