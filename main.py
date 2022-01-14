@@ -1,11 +1,8 @@
 import os
-import random
 import shelve
-import sys
-import traceback
 import sqlite3
+import traceback
 
-import pytz
 from discord import *
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -15,11 +12,13 @@ load_dotenv('.env')
 TOKEN = os.getenv('DISCORD_TOKEN')
 # set up bot
 bot = commands.Bot(command_prefix='!')
+# allow aliases to persist when bot is offline
 aliases = shelve.open('aliases')
 # set up sqlite3 connection
-conn = sqlite3.connect('quotes.db', detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-db = conn.cursor()
-
+con = sqlite3.connect('quotes.db', detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+db = con.cursor()
+# shorthand for my discord user object
+me: User
 
 
 @bot.command(name='setalias',
@@ -28,33 +27,28 @@ async def set_alias(ctx: commands.Context, nickname: str, mention: User = None):
     if not nickname:
         await ctx.send('Please provide a nickname you want')
         return
-
+    # whose alias we are changing
+    target = mention.name if mention else ctx.message.author.name
+    # Only I can change other people's aliases
     if mention:
         if ctx.author != me:
-            await ctx.send("Permission denied. Get fucked")
+            await ctx.send("Permission denied. You are not Asher")
             return
-
-        old = aliases.get(mention.name,default="None")
-        aliases[mention.name] = nickname
-        await ctx.send(
-            f'Changed {mention.name}\'s  alias from "{old}" to "{aliases[mention.name]}"'
-        )
-        return
-
-    old = aliases.get(ctx.message.author.name, default="None")
-    aliases[ctx.message.author.name] = nickname
+    # set new alias
+    old = aliases.get(target, default="None")
+    aliases[target] = nickname
 
     await ctx.send(
-        f'Changed your alias from "{old}" to "{aliases[ctx.message.author.name]}"'
+        f'Changed {target}\'s alias from "{old}" to "{aliases[ctx.message.author.name]}"'
     )
 
 
 @bot.command(name='getalias', help='get your current alias')
 async def get_alias(ctx: commands.Context, mention: User = None):
-    if mention:
-        await ctx.send(f"{mention.name}'s current alias is \"{aliases.get(mention.name,default='None')}\"")
-    else:
-        await ctx.send(f'Your current alias is "{aliases.get(ctx.message.author.name,default="None")}"')
+    # whose alias we are getting
+    target = mention.name if mention else ctx.message.author.name
+
+    await ctx.send(f"{target}'s current alias is \"{aliases.get(target, default='None')}\"")
 
 
 @bot.event
@@ -78,6 +72,7 @@ async def on_command_error(ctx, error):
     # send me dm with traceback
     await me.send('something has errored: here is the traceback')
     await me.send("".join(traceback.format_exception(type(error), error, error.__traceback__)))
+
     await ctx.send("An error has occurred, hopefully its not fatal")
 
 
@@ -90,20 +85,18 @@ async def add_quote(ctx: commands.Context, message_id: int = None, mention: User
 
     quote = await ctx.channel.fetch_message(message_id)
     time = quote.created_at
+    # mention can be used to manually override who the quote belongs to
+    author_id = mention.id if mention else quote.author.id
+    stripped_message = quote.content.strip('\'"` ')
     # add quote to db
-    if mention:
-        db.execute(
-            'INSERT into quotes (user_id, quote, time) VALUES (?, ?, ?)',
-            (mention.id, quote.content.strip('```'), time))
-    else:
-        db.execute(
-            'INSERT into quotes (user_id, quote, time) VALUES (?, ?, ?)',
-            (quote.author.id, quote.content.strip('```'), time))
-    conn.commit()
+    db.execute(
+        'INSERT into quotes (user_id, quote, time) VALUES (?, ?, ?)',
+        (author_id, stripped_message, time))
+    con.commit()
 
-    author = mention.name if mention else quote.author.name
+    author = mention or quote.author
     await ctx.send(
-        f'Added "{quote.content}" to {aliases[author] if author in aliases else quote.author.display_name}\'s quotes!'
+        f'Added "{stripped_message}" to {aliases[author.name] if author.name in aliases else author.display_name}\'s quotes!'
     )
 
 
@@ -112,47 +105,35 @@ async def add_quote(ctx: commands.Context, message_id: int = None, mention: User
                   "using !qadd")
 async def get_quote(ctx: commands.Context,
                     person: User = None,
-                    keyword: str = None,
-                    all: str = None):
-
+                    keyword: str = None):
     author = person or ctx.author
     # keyword matching
+    # use sql random instead of python, better performance
     if keyword:
         db.execute(
-            "SELECT quote, time FROM quotes WHERE user_id=? AND quote LIKE ?",
+            "SELECT quote, time FROM quotes WHERE user_id=? AND quote LIKE ? ORDER BY RANDOM()",
             (author.id, '%' + keyword + '%'))
-
     else:
-        db.execute("SELECT quote, time FROM quotes WHERE user_id=?",
+        db.execute("SELECT quote, time FROM quotes WHERE user_id=? ORDER BY RANDOM()",
                    (author.id,))
 
-    quotes = db.fetchall()
-    if len(quotes) == 0:
+    quote = db.fetchone()
+    if not quote:
         if keyword:
             await ctx.send(
                 'No quotes found for this user matching the pattern provided'
             )
-            return
-        await ctx.send(
-            'No quotes found for this user, add some with `!qadd [message_id]`'
-        )
-        return
-    if all == 'list':
-        for quote in quotes:
-            timestamp = quote[1].astimezone(pytz.timezone("US/Eastern"))
-            time = timestamp.time()
-            date = timestamp.date()
+        else:
             await ctx.send(
-                f'''At {time.isoformat(timespec='minutes')} on {date.isoformat()}, {person.mention} said "{quote[0]}"'''
+                'No quotes found for this user, add some with `!qadd [message_id]`'
             )
         return
 
-    rand_quote = random.choice(quotes)
-    timestamp = rand_quote[1]
+    timestamp = quote[1]
     time = timestamp.time()
     date = timestamp.date()
     await ctx.send(
-        f'At {time.isoformat(timespec="minutes")} on {date.isoformat()}, {person.mention} said "{rand_quote[0]}"'
+        f'At {time.isoformat(timespec="minutes")} on {date.isoformat()}, {person.mention} said "{quote[0]}"'
     )
 
 
@@ -163,7 +144,8 @@ async def remove_quote(ctx: commands.Context, message_id: int = None):
         await ctx.send('Please provide the id of a message you want to remove')
         return
 
-    # try checking the channel that the command was used it
+    # first find the quote associated with that id
+    # try checking the channel that the command was used in
     try:
         quote = await ctx.fetch_message(message_id)
     except NotFound:
@@ -186,13 +168,36 @@ async def remove_quote(ctx: commands.Context, message_id: int = None):
     if not deleted:
         await ctx.send('No quote was found with that id')
         return
-
+    # delete quote from database
     db.execute('DELETE FROM quotes WHERE quote=?', (quote.content,))
-    conn.commit()
+    con.commit()
 
+    author = quote.author
     await ctx.send(
-        f'Removed "{quote.content}" from {aliases[quote.author.name] if quote.author.name in aliases else quote.author.display_name}\'s quotes '
+        f'Removed "{quote.content}" from {aliases[author.name] if author.name in aliases else author.display_name}\'s quotes '
     )
+
+
+@bot.command(name='qgetall', help='get all quotes by a user')
+async def get_all(ctx: commands.Context, mention: User = None):
+    author = mention if mention else ctx.author
+    # get all quotes
+    db.execute("SELECT quote, time FROM quotes WHERE user_id=?", (author.id,))
+    quotes = db.fetchall()
+
+    if not quotes or len(quotes) == 0:
+        await ctx.send('No quotes found for this user, add some with `!qadd [message_id]`')
+        return
+
+    await ctx.send(f'Now listing all quotes for {author.mention}\n')
+    for quote in quotes:
+        datetime = quote[1]
+        time = datetime.time()
+        date = datetime.date()
+        await ctx.send(
+            f'At {time.isoformat(timespec="minutes")} on {date.strftime("%m/%d")}, '
+            f'{aliases.get(author.name, default=author.display_name)} said "{quote[0]}" '
+        )
 
 
 @bot.command(name='qhelp', help='list of commands and brief description')
@@ -208,29 +213,6 @@ async def help(ctx: commands.Context):
         + '!qgetall (user_mention) to get all the quotes from a user (defaults to user who sent command)\n' +
         '!qremove [message_id] to remove that message as a quote\n' +
         '!qhelp to show this message again')
-
-
-@bot.command(name='qgetall', help='get all quotes by a user')
-async def get_all(ctx: commands.Context, mention: User = None):
-
-    author = mention if mention else ctx.author
-
-    db.execute("SELECT quote, time FROM quotes WHERE user_id=?", (author.id,))
-    quotes = db.fetchall()
-
-    if not quotes:
-        await ctx.send('No quotes found for this user, add some with `!qadd [message_id]`')
-        return
-
-    await ctx.send(f'Now listing all quotes for {author.mention}\n')
-    for quote in quotes:
-        datetime = quote[1]
-        time = datetime.time()
-        date = datetime.date()
-        await ctx.send(
-            f'At {time.isoformat(timespec="minutes")} on {date.strftime("%m/%d")}, '
-            f'{aliases.get(author.name, default=author.display_name)} said "{quote[0]}" '
-        )
 
 
 bot.run(TOKEN)
