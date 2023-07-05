@@ -11,7 +11,10 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 TOKEN = os.getenv("DISCORD_TOKEN")
 # set up bot
-bot = commands.Bot(command_prefix="!")
+intents = Intents.default()
+intents.message_content = True
+intents.members = True
+bot = commands.Bot(command_prefix="!", intents=intents)
 # allow aliases to persist when bot is offline
 aliases = shelve.open("aliases")
 # set up sqlite3 connection
@@ -63,7 +66,10 @@ async def on_ready():
     # me!
     me = await bot.fetch_user(269227960156946454)
 
-
+@bot.event
+async def on_connect():
+    global aliases
+    aliases = shelve.open("aliases")
 @bot.event
 async def on_disconnect():
     # sync shelf
@@ -146,7 +152,7 @@ async def get_quote(ctx: commands.Context, person: User = None, keyword: str = N
     time = timestamp.time()
     date = timestamp.date()
     await ctx.send(
-        f'At {time.isoformat(timespec="minutes")} on {date.isoformat()}, {person.mention} said "{quote[0]}"'
+        f'At {time.isoformat(timespec="minutes")} on {date.isoformat()}, {author.mention} said "{quote[0]}"'
     )
 
 
